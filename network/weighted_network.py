@@ -15,27 +15,51 @@ class WeightedNetwork(nn.Module):
         self.conv4 = nn.ConvTranspose2d(256, 128, kernel_size=1)
         self.conv5 = nn.ConvTranspose2d(128, 64, kernel_size=1)
         self.conv6 = nn.ConvTranspose2d(64, 11, kernel_size=1)
+
+        self.fc = nn.Linear(8, 21)
+
+        self.actv = nn.functional.leaky_relu
+
         self.t_down = sampling.T_Down_Sampling()
         self.t_up = sampling.T_Up_Sampling()
+
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    def forward(self, x):
-        x = nn.functional.leaky_relu(self.conv1(x), 0.2)
+    def forward(self, x, style_vector):
+        # encoder
+        x = self.conv1(x)
+        x = self.actv(x, 0.2)
         x = self.t_down(x)
         # x = sampling.s_down_sampling(x, 1)
-        x = nn.functional.leaky_relu(self.conv2(x), 0.2)
+
+        x = self.conv2(x)
+        x = self.actv(x, 0.2)
         x = self.t_down(x)
         # x = sampling.s_down_sampling(x, 2)
-        x = nn.functional.leaky_relu(self.conv3(x), 0.2)
+
+        x = self.conv3(x)
+        x = self.actv(x, 0.2)
         x = self.t_down(x)
         # x = sampling.s_down_sampling(x, 3)
-        x = nn.functional.leaky_relu(self.conv4(x), 0.2)
+
+        # add style vector
+        style_vector = self.fc(style_vector)
+        x = x * style_vector
+
+        # decoder
+        x = self.conv4(x)
+        x = self.actv(x, 0.2)
         x = self.t_up(x)
         # x = sampling.s_up_sampling(x, 3)
-        x = nn.functional.leaky_relu(self.conv5(x), 0.2)
+
+        x = self.conv5(x)
+        x = self.actv(x, 0.2)
         x = self.t_up(x)
         # x = sampling.s_up_sampling(x, 2)
-        x = nn.functional.leaky_relu(self.conv6(x), 0.2)
+
+        x = self.conv6(x)
+        x = self.actv(x, 0.2)
         x = self.t_up(x)
         # x = sampling.s_up_sampling(x, 1)
+
         return x

@@ -33,8 +33,8 @@ def create_train_data(dataset):
             print('classes dataset shape:', dataset[datatype].shape)
     pre_data = np.load('./datasets/preprocess_styletransfer_generate.npz')
     data = helper.normalize(dataset['clips'], pre_data['Xmean'], pre_data['Xstd'])
-
-    return data
+    cls = dataset['classes']
+    return data, cls
 
 def create_test_data(filename):
     dataframe, feet = export_dataset.preprocess(filename, slice=False, downsample=1)

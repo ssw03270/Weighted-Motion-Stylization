@@ -14,7 +14,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 if __name__ == '__main__':
     datasets = data_loader.create_data_loader('train')
-    train_data = data_loader.create_train_data(datasets)
+    train_data, classes = data_loader.create_train_data(datasets)
     input_batch = torch.tensor(train_data, dtype=torch.float32, requires_grad=True, device=device)
     target_batch = torch.tensor(train_data, dtype=torch.float32, device=device)
     print('train data shape:', train_data.shape)
@@ -25,14 +25,17 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     start_time = time.time()
-    max_epoch = 20
+    max_epoch = 600
     for epoch in range(max_epoch):
         running_loss = 0
         step = 0
         total_step = len(input_batch)
-        for input in input_batch:
+        for input, cls in zip(input_batch, classes):
             step += 1
-            output = model(input).to(device)
+            style_vector = np.zeros(8)
+            style_vector[cls[1]] = 1
+            style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)
+            output = model(input, style_vector).to(device)
             loss = criterion(output, input)
             optimizer.zero_grad()
             loss.backward()
