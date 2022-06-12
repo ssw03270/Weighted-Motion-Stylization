@@ -20,6 +20,8 @@ class WeightedNetwork(nn.Module):
 
         self.actv = nn.functional.leaky_relu
 
+        self.s_down = sampling.S_Down_Sampling()
+        self.s_up = sampling.S_Up_Sampling()
         self.t_down = sampling.T_Down_Sampling()
         self.t_up = sampling.T_Up_Sampling()
 
@@ -29,37 +31,38 @@ class WeightedNetwork(nn.Module):
         # encoder
         x = self.conv1(x)
         x = self.actv(x, 0.2)
+
+        # add style vector
+        style_vector = self.fc(style_vector)
+
+        x = x * style_vector
         x = self.t_down(x)
-        # x = sampling.s_down_sampling(x, 1)
+        x = self.s_down(x, 1)
 
         x = self.conv2(x)
         x = self.actv(x, 0.2)
         x = self.t_down(x)
-        # x = sampling.s_down_sampling(x, 2)
+        x = self.s_down(x, 2)
 
         x = self.conv3(x)
         x = self.actv(x, 0.2)
         x = self.t_down(x)
-        # x = sampling.s_down_sampling(x, 3)
-
-        # add style vector
-        style_vector = self.fc(style_vector)
-        x = x * style_vector
+        x = self.s_down(x, 3)
 
         # decoder
         x = self.conv4(x)
         x = self.actv(x, 0.2)
         x = self.t_up(x)
-        # x = sampling.s_up_sampling(x, 3)
+        x = self.s_up(x, 3)
 
         x = self.conv5(x)
         x = self.actv(x, 0.2)
         x = self.t_up(x)
-        # x = sampling.s_up_sampling(x, 2)
+        x = self.s_up(x, 2)
 
         x = self.conv6(x)
         x = self.actv(x, 0.2)
         x = self.t_up(x)
-        # x = sampling.s_up_sampling(x, 1)
+        x = self.s_up(x, 1)
 
         return x

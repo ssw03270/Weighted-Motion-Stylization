@@ -25,7 +25,7 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     start_time = time.time()
-    max_epoch = 600
+    max_epoch = 10
     for epoch in range(max_epoch):
         running_loss = 0
         step = 0
