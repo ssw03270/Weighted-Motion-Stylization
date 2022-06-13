@@ -25,7 +25,7 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     start_time = time.time()
-    max_epoch = 10
+    max_epoch = 1000
     for epoch in range(max_epoch):
         running_loss = 0
         step = 0
@@ -47,6 +47,9 @@ if __name__ == '__main__':
                 print('cost =', '{:.6f}'.format(running_loss / total_step))
                 print('Elapsed time: %.3f, Iteration: [%d/%d]' % (elapsed_time, (epoch + 1), max_epoch))
 
-PATH = './model'
-torch.save(model.state_dict(), PATH + "/model.pt")
-torch.save(model, PATH + "/model_state_dict.pt")
+        if epoch % 100 == 0:
+            PATH = './model'
+            torch.save(model, PATH + "/model_" + str(epoch) + ".pt")
+        if epoch % 10 == 0:
+            PATH = './model'
+            torch.save(model, PATH + "/model_latest.pt")

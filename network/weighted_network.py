@@ -16,7 +16,8 @@ class WeightedNetwork(nn.Module):
         self.conv5 = nn.ConvTranspose2d(128, 64, kernel_size=1)
         self.conv6 = nn.ConvTranspose2d(64, 11, kernel_size=1)
 
-        self.fc = nn.Linear(8, 21)
+        self.fc1 = nn.Linear(8, 5)
+        self.fc2 = nn.Linear(8, 10)
 
         self.actv = nn.functional.leaky_relu
 
@@ -31,11 +32,6 @@ class WeightedNetwork(nn.Module):
         # encoder
         x = self.conv1(x)
         x = self.actv(x, 0.2)
-
-        # add style vector
-        style_vector = self.fc(style_vector)
-
-        x = x * style_vector
         x = self.t_down(x)
         x = self.s_down(x, 1)
 
@@ -55,10 +51,18 @@ class WeightedNetwork(nn.Module):
         x = self.t_up(x)
         x = self.s_up(x, 3)
 
+        # add style vector
+        style_vector1 = self.fc1(style_vector)
+        x = x * style_vector1
+
         x = self.conv5(x)
         x = self.actv(x, 0.2)
         x = self.t_up(x)
         x = self.s_up(x, 2)
+
+        # add style vector
+        style_vector2 = self.fc2(style_vector)
+        x = x * style_vector2
 
         x = self.conv6(x)
         x = self.actv(x, 0.2)
