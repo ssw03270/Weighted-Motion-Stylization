@@ -10,10 +10,10 @@ class WeightedNetwork(nn.Module):
     def __init__(self):
         super(WeightedNetwork, self).__init__()
         self.conv1 = nn.Conv2d(11, 64, kernel_size=1)
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=1)
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=1)
-        self.conv4 = nn.ConvTranspose2d(256, 128, kernel_size=1)
-        self.conv5 = nn.ConvTranspose2d(128, 64, kernel_size=1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.conv4 = nn.ConvTranspose2d(256, 128, kernel_size=3, padding=1)
+        self.conv5 = nn.ConvTranspose2d(128, 64, kernel_size=3, padding=1)
         self.conv6 = nn.ConvTranspose2d(64, 11, kernel_size=1)
 
         self.fc1 = nn.Linear(8, 5)

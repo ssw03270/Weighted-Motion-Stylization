@@ -15,15 +15,16 @@ styles = [line.strip() for line in f.readlines()]
 output_dir = 'output/'
 src_file = "output/walking_neutral.bvh"
 
+PATH = './model/model_latest.pt'
+
 if __name__ == '__main__':
     input, traj, feet = data_loader.create_test_data(src_file)
     input_batch = torch.tensor(input, dtype=torch.float32, requires_grad=True, device=device)
+
     for i in range(8):
         style_vector = np.array([0, 0, 0, 0, 0, 0, 0, 0])
         style_vector[i] = 1
         style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)
-
-        PATH = './model/model_state_dict.pt'
         model = torch.load(PATH)
         model.eval()
         predict = model(input_batch, style_vector)
