@@ -20,36 +20,58 @@ if __name__ == '__main__':
     print('train data shape:', train_data.shape)
     print('device type:', device)
 
-    model = weighted_network.WeightedNetwork().to(device)
+    G = weighted_network.Generator().to(device)
+    D = weighted_network.Discriminator().to(device)
+
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer_G = optim.Adam(G.parameters(), lr=1e-3)
+    optimizer_D = optim.Adam(D.parameters(), lr=1e-3)
 
     start_time = time.time()
     max_epoch = 1000
     for epoch in range(max_epoch):
-        running_loss = 0
+        running_loss_G = 0
+        running_loss_D = 0
         step = 0
         total_step = len(input_batch)
+
         for input, cls in zip(input_batch, classes):
             step += 1
+
             style_vector = np.zeros(8)
             style_vector[cls[1]] = 1
             style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)
-            output = model(input, style_vector).to(device)
-            loss = criterion(output, input)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item() * input.shape[0]
+
+            output_G = G(input, style_vector).to(device)
+            output_D = D(output_G).to(device)
+
+            loss_G = criterion(output_G, input)
+            loss_D = criterion(output_D, style_vector)
+
+            optimizer_G.zero_grad()
+            optimizer_D.zero_grad()
+
+            loss_G.backward(retain_graph=True)
+            loss_D.backward()
+
+            optimizer_G.step()
+            optimizer_D.step()
+
+            running_loss_G += loss_G.item() * input.shape[0]
+            running_loss_D += loss_D.item() * input.shape[0]
 
             if step % total_step == 0:
                 elapsed_time = time.time() - start_time
-                print('cost =', '{:.6f}'.format(running_loss / total_step))
+                print('cost G =', '{:.6f}'.format(running_loss_G / total_step))
+                print('cost D =', '{:.6f}'.format(running_loss_D / total_step))
                 print('Elapsed time: %.3f, Iteration: [%d/%d]' % (elapsed_time, (epoch + 1), max_epoch))
 
         if epoch % 100 == 0:
             PATH = './model'
-            torch.save(model, PATH + "/model_" + str(epoch) + ".pt")
+            torch.save(G, PATH + "/model_G_" + str(epoch) + ".pt")
+            torch.save(D, PATH + "/model_D_" + str(epoch) + ".pt")
+
         if epoch % 10 == 0:
             PATH = './model'
-            torch.save(model, PATH + "/model_latest.pt")
+            torch.save(G, PATH + "/model_G_latest.pt")
+            torch.save(D, PATH + "/model_D_latest.pt")
