@@ -37,7 +37,6 @@ if __name__ == '__main__':
 
         for input, cls in zip(input_batch, classes):
             step += 1
-
             style_vector = np.zeros(8)
             style_vector[cls[1]] = 1
             style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)

@@ -12,12 +12,12 @@ class Generator(nn.Module):
         self.conv1 = nn.Conv2d(11, 64, kernel_size=1)
         self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+
         self.conv4 = nn.ConvTranspose2d(256, 128, kernel_size=3, padding=1)
         self.conv5 = nn.ConvTranspose2d(128, 64, kernel_size=3, padding=1)
         self.conv6 = nn.ConvTranspose2d(64, 11, kernel_size=1)
 
-        self.fc1 = nn.Linear(8, 5)
-        self.fc2 = nn.Linear(8, 10)
+        self.fc = nn.Linear(8, 21)
 
         self.actv = nn.functional.leaky_relu
 
@@ -28,46 +28,40 @@ class Generator(nn.Module):
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+        self.norm = nn.InstanceNorm2d(64, affine=False)
+
     def forward(self, x, style_vector):
         # encoder
         x = self.conv1(x)
         x = self.actv(x, 0.2)
-        x = self.t_down(x)
-        x = self.s_down(x, 1)
 
         x = self.conv2(x)
         x = self.actv(x, 0.2)
         x = self.t_down(x)
-        x = self.s_down(x, 2)
+        x = self.s_down(x, 1)
 
         x = self.conv3(x)
         x = self.actv(x, 0.2)
         x = self.t_down(x)
-        x = self.s_down(x, 3)
+        x = self.s_down(x, 2)
 
         # decoder
         x = self.conv4(x)
         x = self.actv(x, 0.2)
         x = self.t_up(x)
-        x = self.s_up(x, 3)
-
-        # add style vector
-        style_vector1 = self.fc1(style_vector)
-        x = x * style_vector1
+        x = self.s_up(x, 2)
 
         x = self.conv5(x)
         x = self.actv(x, 0.2)
         x = self.t_up(x)
-        x = self.s_up(x, 2)
+        x = self.s_up(x, 1)
 
         # add style vector
-        style_vector2 = self.fc2(style_vector)
-        x = x * style_vector2
+        style_vector = self.fc(style_vector)
+        x = x * style_vector
 
         x = self.conv6(x)
         x = self.actv(x, 0.2)
-        x = self.t_up(x)
-        x = self.s_up(x, 1)
 
         return x
 
@@ -78,7 +72,7 @@ class Discriminator(nn.Module):
         self.conv1 = nn.Conv2d(11, 64, kernel_size=(1, 1))
         self.conv2 = nn.Conv2d(64, 128, kernel_size=(3, 3), padding=1)
         self.conv3 = nn.Conv2d(128, 256, kernel_size=(3, 3), padding=1)
-        self.conv4 = nn.Conv2d(256, 256, kernel_size=(8, 2))
+        self.conv4 = nn.Conv2d(256, 256, kernel_size=(16, 5))
         self.conv5 = nn.Conv2d(256, 8, kernel_size=(1, 1))
 
         self.actv = nn.functional.leaky_relu
@@ -96,18 +90,16 @@ class Discriminator(nn.Module):
         # same structure with encoder
         x = self.conv1(x)
         x = self.actv(x, 0.2)
-        x = self.t_down(x)
-        x = self.s_down(x, 1)
 
         x = self.conv2(x)
         x = self.actv(x, 0.2)
         x = self.t_down(x)
-        x = self.s_down(x, 2)
+        x = self.s_down(x, 1)
 
         x = self.conv3(x)
         x = self.actv(x, 0.2)
         x = self.t_down(x)
-        x = self.s_down(x, 3)
+        x = self.s_down(x, 2)
 
         #
         x = self.actv(x, 0.2)

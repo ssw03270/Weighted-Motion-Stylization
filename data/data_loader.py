@@ -75,7 +75,7 @@ def create_output_data(output, traj, feet, filename, has_traj=False, has_feet=Fa
         positions = helper.remove_fs(positions, feet)
 
     print('Saving animation of %s in bvh...' % filename)
-    helper.to_bvh_cmu(positions, filename=filename, frametime=1.0/30.0)
+    helper.to_bvh_cmu(positions, filename=filename, frametime=1.0/60.0)
 
 def to(inputs, device, expand_dim=False):
     for name, ele in inputs.items():

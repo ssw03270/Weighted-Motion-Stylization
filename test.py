@@ -12,10 +12,10 @@ contents = [line.strip() for line in f.readlines()]
 f = open('styles.txt', 'r')
 styles = [line.strip() for line in f.readlines()]
 
-output_dir = 'output/'
-src_file = "output/walking_neutral.bvh"
+output_dir = 'output'
+src_file = "output/reference/walking_neutral.bvh"
 
-PATH = './model/model_latest.pt'
+PATH = './model/model_G_latest.pt'
 
 if __name__ == '__main__':
     input, traj, feet = data_loader.create_test_data(src_file)
