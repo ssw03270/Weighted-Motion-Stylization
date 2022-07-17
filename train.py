@@ -12,6 +12,13 @@ import network.weighted_network as weighted_network
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+def adv_loss(logits, target):
+    assert target in [1, 0]
+    targets = torch.full_like(logits, fill_value=target)
+    loss = F.binary_cross_entropy_with_logits(logits, targets)
+
+    return loss
+
 if __name__ == '__main__':
     datasets = data_loader.create_data_loader('train')
     train_data, classes = data_loader.create_train_data(datasets)
@@ -42,26 +49,42 @@ if __name__ == '__main__':
             style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)
 
             output_G = G(input, style_vector).to(device)
-            output_D = D(output_G).to(device)
-
-            loss_G = criterion(output_G, input)
-            loss_D = criterion(output_D, style_vector)
 
             optimizer_G.zero_grad()
             optimizer_D.zero_grad()
 
-            loss_G.backward(retain_graph=True)
-            loss_D.backward()
+            loss_G = adv_loss(D(output_G), 1)
 
+            loss_G.backward()
             optimizer_G.step()
-            optimizer_D.step()
 
             running_loss_G += loss_G.item() * input.shape[0]
+
+            if step % total_step == 0:
+                print('cost G =', '{:.6f}'.format(running_loss_G / total_step))
+
+        for input, cls in zip(input_batch, classes):
+            step += 1
+            style_vector = np.zeros(8)
+            style_vector[cls[1]] = 1
+            style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)
+
+            optimizer_G.zero_grad()
+            optimizer_D.zero_grad()
+
+            output_G = G(input, style_vector).to(device)
+
+            loss_fake = adv_loss(D(output_G), 0)
+            loss_real = adv_loss(D(input), 1)
+            loss_D = (loss_real + loss_fake) / 2
+
+            loss_D.backward()
+            optimizer_D.step()
+
             running_loss_D += loss_D.item() * input.shape[0]
 
             if step % total_step == 0:
                 elapsed_time = time.time() - start_time
-                print('cost G =', '{:.6f}'.format(running_loss_G / total_step))
                 print('cost D =', '{:.6f}'.format(running_loss_D / total_step))
                 print('Elapsed time: %.3f, Iteration: [%d/%d]' % (elapsed_time, (epoch + 1), max_epoch))
 
