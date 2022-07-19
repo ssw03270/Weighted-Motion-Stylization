@@ -28,7 +28,7 @@ class Generator(nn.Module):
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        self.norm = nn.InstanceNorm2d(64, affine=False)
+        self.norm = AdaIN(8, 21)
 
     def forward(self, x, style_vector):
         # encoder
@@ -57,8 +57,7 @@ class Generator(nn.Module):
         x = self.s_up(x, 1)
 
         # add style vector
-        style_vector = self.fc(style_vector)
-        x = x * style_vector
+        x = self.norm(x, style_vector)
 
         x = self.conv6(x)
         x = self.actv(x, 0.2)
@@ -112,3 +111,16 @@ class Discriminator(nn.Module):
         x = self.fc(x)
 
         return x
+
+
+class AdaIN(nn.Module):
+    def __init__(self, style_dim, num_features):
+        super(AdaIN, self).__init__()
+        self.norm = nn.InstanceNorm2d(num_features, affine=False)
+        self.fc = nn.Linear(style_dim, num_features * 2)
+
+    def forward(self, x, s):
+        h = self.fc(s)
+        h = h.view(1, 2, int(h.size(0) / 2))
+        gamma, beta = torch.chunk(h, chunks=2, dim=1)
+        return (1 + gamma) * self.norm(x) + beta
