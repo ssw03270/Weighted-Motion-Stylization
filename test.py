@@ -19,12 +19,13 @@ PATH = './model/model_G_latest.pt'
 
 if __name__ == '__main__':
     input, traj, feet = data_loader.create_test_data(src_file)
-    input_batch = torch.tensor(input, dtype=torch.float32, requires_grad=True, device=device)
+    input_batch = input['posrot']
 
     for i in range(8):
-        style_vector = np.array([0, 0, 0, 0, 0, 0, 0, 0])
-        style_vector[i] = 1
-        style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)
+        style_vector = np.array([[0, 0, 0, 0, 0, 0, 0, 0]])
+        style_vector[0][i] = 1
+        style_vector = np.repeat(style_vector, repeats=8, axis=0)
+        style_vector = torch.Tensor(style_vector).to(device)
         model = torch.load(PATH)
         model.eval()
         predict = model(input_batch, style_vector)

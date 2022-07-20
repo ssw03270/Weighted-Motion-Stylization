@@ -33,80 +33,94 @@ def r1_reg(d_out, x_in):
 
     return reg
 
+def style_loss(output, target):
+    loss = F.cross_entropy(output, target)
+
+    return loss
+
 if __name__ == '__main__':
-    datasets = data_loader.create_data_loader('train')
-    train_data, classes = data_loader.create_train_data(datasets)
-    input_batch = torch.tensor(train_data, dtype=torch.float32, requires_grad=True, device=device)
-    target_batch = torch.tensor(train_data, dtype=torch.float32, device=device)
-    print('train data shape:', train_data.shape)
-    print('device type:', device)
+    loader = data_loader.create_data_loader()
+    fetcher = data_loader.InputFetcher(loader)
 
     G = weighted_network.Generator().to(device)
     D = weighted_network.Discriminator().to(device)
+    S = weighted_network.StyleEncoder().to(device)
 
     optimizer_G = optim.Adam(G.parameters(), lr=1e-4)
     optimizer_D = optim.Adam(D.parameters(), lr=1e-6)
+    optimizer_S = optim.Adam(S.parameters(), lr=1e-5)
 
     start_time = time.time()
-    max_epoch = 10000
+    max_epoch = 100000
 
     for epoch in range(max_epoch):
-        running_loss_G = 0
-        running_loss_D = 0
-        step = 0
-        train_size = input_batch.shape[0]
-        batch_size = 8
-        batch_mask = np.random.choice(train_size, batch_size)
-        x_batch = input_batch[batch_mask]
-        total_step = len(x_batch)
+        inputs = next(fetcher)
+        inputs['x_real']['posrot'].requires_grad = True
 
+        style = inputs['y_org']
+        num_style = len(style)
+        style_vector = np.zeros((num_style, 8))
+        for i in range(num_style):
+            style_vector[i][style[i]] = 1
+        style_vector = torch.Tensor(style_vector).to(device)
 
-        for input, cls in zip(x_batch, classes):
-            step += 1
-            style_vector = np.zeros(8)
-            style_vector[cls[1]] = 1
-            style_vector = torch.tensor(style_vector, dtype=torch.float32, device=device)
+        if not len(style) == 8:
+            continue
 
-            output_G = G(input, style_vector).to(device)
+        output_G = G(inputs['x_real']['posrot'], style_vector)
 
-            # ---------------------
-            #  Train Discriminator
-            # ---------------------
+        # ---------------------
+        #  Train Discriminator
+        # ---------------------
 
-            optimizer_D.zero_grad()
+        optimizer_D.zero_grad()
 
-            loss_fake = adv_loss(D(output_G), 0)
-            loss_real = adv_loss(D(input), 1)
-            loss_reg = r1_reg(D(input), input)
-            loss_D = loss_real + loss_fake + loss_reg
+        loss_fake = adv_loss(D(output_G), 0)
+        loss_real = adv_loss(D(inputs['x_real']['posrot']), 1)
+        loss_reg = r1_reg(D(inputs['x_real']['posrot']), inputs['x_real']['posrot'])
+        loss_D = loss_real + loss_fake + loss_reg
 
-            loss_D.backward(retain_graph=True)
-            optimizer_D.step()
+        loss_D.backward(retain_graph=True)
+        optimizer_D.step()
 
-            running_loss_D += loss_D.item() * input.shape[0]
+        # -----------------
+        #  Train Style Encoder
+        # -----------------
 
-            # -----------------
-            #  Train Generator
-            # -----------------
+        optimizer_S.zero_grad()
 
-            optimizer_G.zero_grad()
+        loss_S = style_loss(S(inputs['x_real']['posrot']), style_vector)
 
-            loss_G = adv_loss(D(output_G), 1)
+        loss_S.backward(retain_graph=True)
+        optimizer_S.step()
 
-            loss_G.backward(retain_graph=True)
-            optimizer_G.step()
+        # -----------------
+        #  Train Generator
+        # -----------------
 
-            running_loss_G += loss_G.item() * input.shape[0]
+        optimizer_G.zero_grad()
 
-            if step % total_step == 0:
-                elapsed_time = time.time() - start_time
-                print('cost G =', '{:.6f}'.format(running_loss_G / total_step))
-                print('cost D =', '{:.6f}'.format(running_loss_D / total_step))
-                print('Elapsed time: %.3f, Iteration: [%d/%d]' % (elapsed_time, (epoch + 1), max_epoch))
+        loss_adv = adv_loss(D(output_G), 1)
+        loss_sty = style_loss(S(output_G), style_vector)
+        loss_G = loss_adv + loss_sty
 
+        loss_G.backward(retain_graph=True)
+        optimizer_G.step()
 
+        # Print Loss
+        if (epoch + 1) % 10 == 0:
+            elapsed_time = time.time() - start_time
+            print('-------------------------------------------------------')
+            print('cost G =', '{:.6f}'.format(loss_G))
+            print('cost D =', '{:.6f}'.format(loss_D))
+            print('cost S =', '{:.6f}'.format(loss_S))
+            print('-------------------------------------------------------')
+            print('loss_fake =', '{:.6f}'.format(loss_fake), 'loss_real =', '{:.6f}'.format(loss_real), 'loss_reg =', '{:.6f}'.format(loss_reg))
+            print('loss_adv =', '{:.6f}'.format(loss_adv), 'loss_sty =', '{:.6f}'.format(loss_sty))
+            print('Elapsed time: %.3f, Iteration: [%d/%d]' % (elapsed_time, (epoch + 1), max_epoch))
+            print('-------------------------------------------------------')
 
-        if (epoch + 1) % 1000 == 0:
+        if (epoch + 1) % 5000 == 0:
             PATH = './model'
             torch.save(G, PATH + "/model_G_" + str(epoch + 1) + ".pt")
             torch.save(D, PATH + "/model_D_" + str(epoch + 1) + ".pt")

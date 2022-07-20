@@ -3,6 +3,8 @@ import numpy as np
 import data.export_dataset as export_dataset
 import data.helper as helper
 import torch
+from torch.utils import data
+from torch.utils.data.sampler import WeightedRandomSampler
 
 from animation import BVH
 from animation.InverseKinematics import JacobianInverseKinematics
@@ -16,25 +18,81 @@ styles = [line.strip() for line in f.readlines()]
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def create_data_loader(type='train'):
-    print('create source dataset %s phase...' % type)
+class Dataset(data.Dataset):
+    def __init__(self):
+        self.dataset = np.load('./datasets/styletransfer_generate.npz')
+        self.preprocess = np.load('./datasets/preprocess_styletransfer_generate.npz')
+        self.data_clips = self.dataset['clips']
+        self.data_feet = self.dataset['feet']
+        self.data_classes = self.dataset['classes']
+        self.samples, self.contacts, self.targets, self.labels = self.make_dataset()
 
-    if type == 'train':
-        data = np.load('./datasets/styletransfer_generate.npz')
-        return data
+    def make_dataset(self):
+        X, F, Y, C = [], [], [], []
+        for dom in range(len(styles)):
+            dom_idx = [si for si in range(len(self.data_classes))
+                       if self.data_classes[si][1] == styles.index(styles[dom])]  # index list that belongs to the domain
+            dom_clips = [self.data_clips[cli] for cli in dom_idx]  # clips list (motion data) that belongs to the domain
+            dom_feet = [self.data_feet[fti] for fti in dom_idx]
+            dom_contents = [self.data_classes[ci][0] for ci in dom_idx]
+            X += dom_clips
+            F += dom_feet
+            Y += [dom] * len(dom_clips)
+            C += dom_contents
+        return X, F, Y, C
 
-def create_train_data(dataset):
-    for datatype in dataset:
-        if datatype == 'clips':
-            print('clips dataset shape:', dataset[datatype].shape)
-        if datatype == 'feet':
-            print('feet dataset shape:', dataset[datatype].shape)
-        if datatype == 'classes':
-            print('classes dataset shape:', dataset[datatype].shape)
-    pre_data = np.load('./datasets/preprocess_styletransfer_generate.npz')
-    data = helper.normalize(dataset['clips'], pre_data['Xmean'], pre_data['Xstd'])
-    cls = dataset['classes']
-    return data, cls
+    def __getitem__(self, index):
+        x = self.samples[index]
+        f = self.contacts[index]
+        x = helper.normalize(x, self.preprocess['Xmean'], self.preprocess['Xstd'])
+        data = {'posrot': x[:7], 'traj': x[-4:], 'feet': f}
+        y = self.targets[index]
+        c = self.labels[index]
+        return {'x': data, 'y': y, 'c': c}
+
+    def __len__(self):
+        return len(self.targets)
+
+
+class InputFetcher:
+    def __init__(self, loader, loader_ref=None):
+        self.loader = loader
+        self.loader_ref = loader_ref
+        self.latent_dim = 16
+        self.device = device
+
+    def fetch_src(self):
+        try:
+            src = next(self.iter)
+        except (AttributeError, StopIteration):
+            self.iter = iter(self.loader)
+            src = next(self.iter)
+        return src
+
+    def fetch_refs(self):
+        try:
+            ref = next(self.iter_ref)
+        except (AttributeError, StopIteration):
+            self.iter_ref = iter(self.loader_ref)
+            ref = next(self.iter_ref)
+        return ref
+
+    def __next__(self):
+        inputs = {}
+        src = self.fetch_src()
+        inputs_src = {'x_real': src['x'], 'y_org': src['y'], 'c_real': src['c']}
+        inputs.update(inputs_src)
+
+        if self.loader_ref is not None:
+            ref = self.fetch_refs()
+            z = torch.randn(src['y'].size(0), self.latent_dim)   # random Gaussian noise for x_ref
+            z2 = torch.randn(src['y'].size(0), self.latent_dim)  # random Gaussian noise for x_ref2
+            inputs_ref = {'x_ref': ref['x'], 'x_ref2': ref['x2'],
+                          'c_ref': ref['c'], 'c_ref2': ref['c2'],
+                          'y_trg': ref['y'],
+                          'z_trg': z, 'z_trg2': z2}
+            inputs.update(inputs_ref)
+        return to(inputs, self.device)
 
 def create_test_data(filename):
     dataframe, feet = export_dataset.preprocess(filename, slice=False, downsample=1)
@@ -49,7 +107,7 @@ def create_test_data(filename):
     src = {'x': x_data}
     input = {'x_real': src['x']}
     input = to(input, device, expand_dim=True)
-    return data, input['x_real']['traj'], input['x_real']['feet']
+    return x_data, input['x_real']['traj'], input['x_real']['feet']
 
 def create_output_data(output, traj, feet, filename, has_traj=False, has_feet=False):
     pre_data = np.load('./datasets/preprocess_styletransfer_generate.npz')
@@ -92,3 +150,29 @@ def to(inputs, device, expand_dim=False):
             else:
                 inputs[name] = ele.to(device, dtype=torch.float)
     return inputs
+
+def make_weighted_sampler(labels):
+    class_counts = np.bincount(labels)
+    class_weights = 1. / class_counts
+    weights = class_weights[labels]
+    return WeightedRandomSampler(weights, len(weights))
+
+def create_data_loader(which='source'):
+    print('Preparing %s dataset during %s phase...' % (which, type))
+    if which == 'source':
+        dataset = Dataset()
+    else:
+        raise NotImplementedError
+
+    if type == 'train':
+        sampler = make_weighted_sampler(dataset.targets)
+        return data.DataLoader(dataset=dataset,
+                            batch_size=8,
+                            sampler=sampler,
+                            num_workers=0,
+                            pin_memory=True,
+                            drop_last=True)
+    elif type is not None:
+        return data.DataLoader(dataset=dataset, batch_size=8)
+    else:
+        raise NotImplementedError('Please specify dataset type!')
