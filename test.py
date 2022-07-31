@@ -15,14 +15,14 @@ styles = [line.strip() for line in f.readlines()]
 output_dir = 'output'
 src_file = "output/reference/walking_neutral.bvh"
 
-PATH = './model/model_G_latest.pt'
+PATH = './model/model_G_100000.pt'
 
 if __name__ == '__main__':
     input, traj, feet = data_loader.create_test_data(src_file)
     input_batch = input['posrot']
 
-    for i in range(8):
-        style_vector = np.array([[0, 0, 0, 0, 0, 0, 0, 0]])
+    for i in range(3):
+        style_vector = np.array([[0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.float64)
         style_vector[0][i] = 1
         style_vector = np.repeat(style_vector, repeats=8, axis=0)
         style_vector = torch.Tensor(style_vector).to(device)

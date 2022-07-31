@@ -1,0 +1,9 @@
+Preparing source dataset during <class 'type'> phase...
+=======================================================
+cost G = 3.106803
+cost D = 1.378886
+cost S = 2.222657
+-------------------------------------------------------
+loss_fake = 0.621849 loss_real = 0.757003 loss_reg = 0.000033
+loss_adv = 0.779727 loss_sty = 2.327075
+Elapsed time: 8.052, Iteration: [100/1000]

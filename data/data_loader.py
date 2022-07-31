@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import random
 import data.export_dataset as export_dataset
 import data.helper as helper
 import torch
@@ -45,14 +46,16 @@ class Dataset(data.Dataset):
         x = self.samples[index]
         f = self.contacts[index]
         x = helper.normalize(x, self.preprocess['Xmean'], self.preprocess['Xstd'])
+
         data = {'posrot': x[:7], 'traj': x[-4:], 'feet': f}
+
         y = self.targets[index]
+
         c = self.labels[index]
         return {'x': data, 'y': y, 'c': c}
 
     def __len__(self):
         return len(self.targets)
-
 
 class InputFetcher:
     def __init__(self, loader, loader_ref=None):
@@ -79,19 +82,15 @@ class InputFetcher:
 
     def __next__(self):
         inputs = {}
+
         src = self.fetch_src()
         inputs_src = {'x_real': src['x'], 'y_org': src['y'], 'c_real': src['c']}
         inputs.update(inputs_src)
 
-        if self.loader_ref is not None:
-            ref = self.fetch_refs()
-            z = torch.randn(src['y'].size(0), self.latent_dim)   # random Gaussian noise for x_ref
-            z2 = torch.randn(src['y'].size(0), self.latent_dim)  # random Gaussian noise for x_ref2
-            inputs_ref = {'x_ref': ref['x'], 'x_ref2': ref['x2'],
-                          'c_ref': ref['c'], 'c_ref2': ref['c2'],
-                          'y_trg': ref['y'],
-                          'z_trg': z, 'z_trg2': z2}
-            inputs.update(inputs_ref)
+        ref = self.fetch_refs()
+        inputs_ref = {'x_ref': ref['x'], 'y_trg': ref['y'], 'c_ref': ref['c']}
+        inputs.update(inputs_ref)
+
         return to(inputs, self.device)
 
 def create_test_data(filename):
@@ -157,7 +156,7 @@ def make_weighted_sampler(labels):
     weights = class_weights[labels]
     return WeightedRandomSampler(weights, len(weights))
 
-def create_data_loader(which='source'):
+def create_data_loader(which='source', type='train'):
     print('Preparing %s dataset during %s phase...' % (which, type))
     if which == 'source':
         dataset = Dataset()
@@ -173,6 +172,6 @@ def create_data_loader(which='source'):
                             pin_memory=True,
                             drop_last=True)
     elif type is not None:
-        return data.DataLoader(dataset=dataset, batch_size=8)
+        return data.DataLoader(dataset=dataset, batch_size=8, shuffle=True)
     else:
         raise NotImplementedError('Please specify dataset type!')
